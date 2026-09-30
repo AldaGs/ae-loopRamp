@@ -213,17 +213,19 @@ static void
 LR_ReadParams (LRInfo *info, PF_InData *in_data, PF_ParamDef *p[],
 			   PF_FpLong originX, PF_FpLong originY)
 {
-	// All ramp math happens in FULL-RES layer pixels (where point params live);
-	// LR_Shade maps each rendered pixel back up. Scaling the points down
-	// instead would skew angles/circles when x and y downsample differ, and
-	// would change the scatter grain with the resolution.
+	// All ramp math happens in FULL-RES layer pixels; LR_Shade maps each
+	// rendered pixel back up, so angles, circles and scatter grain don't change
+	// with the preview resolution.
 	info->invDsx = (PF_FpLong)in_data->downsample_x.den / in_data->downsample_x.num;
 	info->invDsy = (PF_FpLong)in_data->downsample_y.den / in_data->downsample_y.num;
 
-	info->sx = FIX_2_FLOAT(p[LR_START]->u.td.x_value);
-	info->sy = FIX_2_FLOAT(p[LR_START]->u.td.y_value);
-	info->dx = FIX_2_FLOAT(p[LR_END]->u.td.x_value) - info->sx;
-	info->dy = FIX_2_FLOAT(p[LR_END]->u.td.y_value) - info->sy;
+	// PF_Param_POINT arrives ALREADY DOWNSAMPLED (same as GodRays / Star Glint
+	// found). Scale it UP to full res. Treating it as full-res made the ramp
+	// stretch 2x at Half, 3x at Third, 4x at Quarter.
+	info->sx = FIX_2_FLOAT(p[LR_START]->u.td.x_value) * info->invDsx;
+	info->sy = FIX_2_FLOAT(p[LR_START]->u.td.y_value) * info->invDsy;
+	info->dx = FIX_2_FLOAT(p[LR_END]->u.td.x_value) * info->invDsx - info->sx;
+	info->dy = FIX_2_FLOAT(p[LR_END]->u.td.y_value) * info->invDsy - info->sy;
 
 	PF_FpLong len2 = info->dx * info->dx + info->dy * info->dy;
 	info->invLen2 = (len2 > 0.0) ? 1.0 / len2 : 0.0;

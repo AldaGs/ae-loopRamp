@@ -213,14 +213,17 @@ static void
 LR_ReadParams (LRInfo *info, PF_InData *in_data, PF_ParamDef *p[],
 			   PF_FpLong originX, PF_FpLong originY)
 {
-	// Point params are full-res layer coords; scale to the current downsample.
-	PF_FpLong dsx = (PF_FpLong)in_data->downsample_x.num / in_data->downsample_x.den;
-	PF_FpLong dsy = (PF_FpLong)in_data->downsample_y.num / in_data->downsample_y.den;
+	// All ramp math happens in FULL-RES layer pixels (where point params live);
+	// LR_Shade maps each rendered pixel back up. Scaling the points down
+	// instead would skew angles/circles when x and y downsample differ, and
+	// would change the scatter grain with the resolution.
+	info->invDsx = (PF_FpLong)in_data->downsample_x.den / in_data->downsample_x.num;
+	info->invDsy = (PF_FpLong)in_data->downsample_y.den / in_data->downsample_y.num;
 
-	info->sx = FIX_2_FLOAT(p[LR_START]->u.td.x_value) * dsx;
-	info->sy = FIX_2_FLOAT(p[LR_START]->u.td.y_value) * dsy;
-	info->dx = FIX_2_FLOAT(p[LR_END]->u.td.x_value) * dsx - info->sx;
-	info->dy = FIX_2_FLOAT(p[LR_END]->u.td.y_value) * dsy - info->sy;
+	info->sx = FIX_2_FLOAT(p[LR_START]->u.td.x_value);
+	info->sy = FIX_2_FLOAT(p[LR_START]->u.td.y_value);
+	info->dx = FIX_2_FLOAT(p[LR_END]->u.td.x_value) - info->sx;
+	info->dy = FIX_2_FLOAT(p[LR_END]->u.td.y_value) - info->sy;
 
 	PF_FpLong len2 = info->dx * info->dx + info->dy * info->dy;
 	info->invLen2 = (len2 > 0.0) ? 1.0 / len2 : 0.0;
@@ -263,8 +266,12 @@ LR_Shade (const LRInfo *info, A_long xL, A_long yL,
 		  PF_FpLong sr, PF_FpLong sg, PF_FpLong sb,
 		  PF_FpLong *orP, PF_FpLong *ogP, PF_FpLong *obP)
 {
-	PF_FpLong px = xL + info->originX - info->sx;
-	PF_FpLong py = yL + info->originY - info->sy;
+	// Center of this (possibly downsampled) pixel, in full-res layer pixels.
+	// Identity at full resolution.
+	PF_FpLong fx = (xL + info->originX + 0.5) * info->invDsx - 0.5;
+	PF_FpLong fy = (yL + info->originY + 0.5) * info->invDsy - 0.5;
+	PF_FpLong px = fx - info->sx;
+	PF_FpLong py = fy - info->sy;
 
 	PF_FpLong t = (info->shape == LR_SHAPE_RADIAL)
 		? sqrt(px * px + py * py) * info->invLen
@@ -272,7 +279,9 @@ LR_Shade (const LRInfo *info, A_long xL, A_long yL,
 
 	PF_FpLong u = t * info->repeat - info->offset;
 	if (info->scatter > 0.0) {
-		u += (Hash01(xL + (A_long)info->originX, yL + (A_long)info->originY) - 0.5)
+		// Keyed on the full-res pixel, so lower resolutions show the same
+		// grain, just sampled more sparsely.
+		u += (Hash01((A_long)floor(fx + 0.5), (A_long)floor(fy + 0.5)) - 0.5)
 			 * info->scatter;
 	}
 	u -= floor(u);										// wrap into [0,1)

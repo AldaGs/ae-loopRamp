@@ -51,7 +51,7 @@ typedef short int			int16;
 
 #define	MAJOR_VERSION	1
 #define	MINOR_VERSION	1
-#define	BUG_VERSION		0
+#define	BUG_VERSION		1
 #define	STAGE_VERSION	PF_Stage_DEVELOP
 #define	BUILD_VERSION	1
 
@@ -119,12 +119,13 @@ typedef struct {
 /* ---- per-render snapshot ---------------------------------------------- */
 
 typedef struct LRInfo {
-	// geometry, in layer pixels at the CURRENT downsample
+	// geometry, in FULL-RES layer pixels
 	PF_FpLong	sx, sy;				// start point
 	PF_FpLong	dx, dy;				// end - start
 	PF_FpLong	invLen2;			// 1 / |d|^2 (linear)
 	PF_FpLong	invLen;				// 1 / |d|   (radial)
-	PF_FpLong	originX, originY;	// layer pixel of world pixel (0,0)
+	PF_FpLong	originX, originY;	// downsampled layer pixel of world pixel (0,0)
+	PF_FpLong	invDsx, invDsy;		// downsampled -> full-res scale (1, 2, 4...)
 	A_long		shape;
 	PF_FpLong	offset;				// in cycles (slider % / 100)
 	PF_FpLong	repeat;

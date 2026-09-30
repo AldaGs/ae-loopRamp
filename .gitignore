@@ -1,0 +1,4 @@
+Win/x64/
+Win/.vs/
+*.user
+Win/*PiPL.rc
